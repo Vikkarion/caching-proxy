@@ -1,33 +1,15 @@
 // caching proxy
-const { argv } = require('node:process');
 const http = require('node:http');
-const https = require('node:https');
-const { URL } = require('node:url');
 
-//1
-if (argv.includes('--clear cache')) {
-  const clearReq = http.request({
-    hostname: 'localhost',
-    port,
-    path: '/__clear_cache',
-    method: 'DELETE'
-  }, (res) => {
-    console.log(`Cleared cache: ${res.statusCode}`);
-  });
-  clearReq.on('error', (err) => {
-    console.error(`Error clearing cache, please verify if the proxy is running on port ${port}: ${err.message}`)
-  });
-  clearReq.end();
-} else {
-
-  const port = argv[argv.indexOf("--port") + 1];
-  const destURL = argv[argv.indexOf("--origin") + 1];
-  const { hostname, port: destPort, protocol, host: originHost } = new URL(destURL);
-  const client = protocol === 'https:' ? https : http;
-  const cache = new Map();
-
+function proxyConnetion(port, cache, client, hostname, destPort, originHost) {
   //2
   const proxy = http.createServer((req, res) => {
+    if (req.method === 'DELETE' && req.url === '/__clear-cache') {
+      cache.clear();
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('Cache cleared');
+      return;
+    }
     const cached = cache.get(req.url);
     if (cached) {
       console.log('X-Cache: HIT');
@@ -48,7 +30,7 @@ if (argv.includes('--clear cache')) {
         ...req.headers,
         host: originHost
       }
-    }
+    };
     //3
     const proxyReq = client.request(options, (proxyRes) => {
       const chunks = [];
@@ -81,3 +63,5 @@ if (argv.includes('--clear cache')) {
     console.error(err);
   });
 }
+
+module.exports = proxyConnetion;
